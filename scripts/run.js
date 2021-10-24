@@ -6,7 +6,11 @@ const main = async () => {
     "https://nyc3.digitaloceanspaces.com/memecreator-cdn/media/__processed__/de5/template-hello-there-1519-0c6db91aec9c.jpeg", 
     "https://pbs.twimg.com/media/E1SsP89XMAAmyu_.jpg"],
     [100, 200, 180],                    // HP values
-    [100, 50, 75]                       // Attack damage values
+    [100, 50, 75],                      // Attack damage values
+    "Palpatine",
+    "https://memegenerator.net/img/images/400x/71785106.jpg",
+    10000,
+    20
   );
   await gameContract.deployed();
   console.log("Contract deployed to:", gameContract.address);
@@ -20,6 +24,12 @@ const main = async () => {
   // Get the value of the NFT's URI.
   let returnedTokenUri = await gameContract.tokenURI(1);
   console.log("Token URI:", returnedTokenUri);
+
+  txn = await gameContract.attackBoss();
+  await txn.wait();
+
+  txn = await gameContract.attackBoss();
+  await txn.wait();
 };
 
 const runMain = async () => {
