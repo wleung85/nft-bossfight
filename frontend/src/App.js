@@ -3,8 +3,9 @@ import twitterLogo from './assets/twitter-logo.svg';
 import './App.css';
 import SelectCharacter from './Components/SelectCharacter';
 import { CONTRACT_ADDRESS, transformCharacterData } from './constants';
-import myEpicGame from './utils/MyEpigGame.json';
+import myEpicGame from './utils/MyEpicGame.json';
 import { ethers } from 'ethers';
+import Arena from './Components/Arena';
 
 // Constants
 const TWITTER_HANDLE = 'wl_devs';
@@ -64,6 +65,9 @@ const App = () => {
     } else if (currentAccount && !characterNFT) {
       // User is connected but does not have a character
       return <SelectCharacter setCharacterNFT={setCharacterNFT} />;
+    } else if (currentAccount && characterNFT) {
+      // User has connected wallet and characterNFT
+      return <Arena characterNFT={characterNFT} setCharacterNFT={setCharacterNFT} />;
     }
   };
 
@@ -139,9 +143,7 @@ const App = () => {
         <div className="header-container">
           <p className="header gradient-text">⚔️ Sith Slayer ⚔️</p>
           <p className="sub-text">Team up to protect the galaxy!</p>
-          <div className="connect-wallet-container">
-            {renderContent()}
-          </div>
+          {renderContent()}
         </div>
         <div className="footer-container">
           <img alt="Twitter Logo" className="twitter-logo" src={twitterLogo} />
