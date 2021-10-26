@@ -9,13 +9,28 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
+// Import chainlink for randomness
+import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
+
 // Helper we wrote to encode in Base64
 import "./libraries/Base64.sol";
 
 import "hardhat/console.sol";
 
 // Inherit ERC721, which is the standard NFT contract!
-contract MyEpicGame is ERC721 {
+contract MyEpicGame is ERC721, VRFConsumerBase {
+
+  bytes32 internal keyHash;
+  uint256 internal fee;
+
+  uint256 private randomResult;
+  uint256 private constant ATTACK_IN_PROGRESS = 106;
+  uint256 private constant OUT_OF_LINK = 100;
+
+  // stores a mapping between requestID of the random request and the user
+  mapping(bytes32 => address) private s_rollers;
+  // stores the result of the roll
+  mapping(address => uint256) private s_results;
 
   struct CharacterAttributes {
     uint characterIndex;
@@ -24,6 +39,7 @@ contract MyEpicGame is ERC721 {
     uint hp;
     uint maxHp;
     uint attackDamage;
+    uint critChance;
   }
 
   using Counters for Counters.Counter;
@@ -50,18 +66,35 @@ contract MyEpicGame is ERC721 {
   event CharacterNFTMinted(address sender, uint256 tokenId, uint256 characterIndex);
   event AttackComplete(uint newBossHp, uint newPlayerHp);
 
+   /**
+     * Constructor inherits VRFConsumerBase
+     * 
+     * Network: Rinkeby
+     * Chainlink VRF Coordinator address: 0x01BE23585060835E02B77ef475b0Cc51aA1e0709
+     * LINK token address:                0xb3dCcb4Cf7a26f6cf6B120Cf5A73875B7BBc655B
+     * Key Hash: 0x2ed0feb3e7fd2022120aa84fab1945545a9f2ffc9076fd6156fa96eaff4c1311
+     */
+
   constructor(
     string[] memory characterNames,
     string[] memory characterImageURIs,
     uint[] memory characterHp,
     uint[] memory characterAttackDmg,
+    uint[] memory characterCritChance,
     string memory bossName,
     string memory bossImageURI,
     uint bossHp,
     uint bossAttackDamage
   )
     ERC721("Heroes", "HERO")
+    VRFConsumerBase(
+      0x01BE23585060835E02B77ef475b0Cc51aA1e0709, // VRF Coordinator
+      0xb3dCcb4Cf7a26f6cf6B120Cf5A73875B7BBc655B  // LINK token
+    )
   {
+    keyHash = 0x2ed0feb3e7fd2022120aa84fab1945545a9f2ffc9076fd6156fa96eaff4c1311;
+    fee = 0.1 * 10 ** 18; // 0.1 LINK (Varies by network)
+
     // Initialize the boss. Save it to our global "bigBoss" state variable.
     bigBoss = BigBoss({
       name: bossName,
@@ -82,7 +115,8 @@ contract MyEpicGame is ERC721 {
         imageURI: characterImageURIs[i],
         hp: characterHp[i],
         maxHp: characterHp[i],
-        attackDamage: characterAttackDmg[i]
+        attackDamage: characterAttackDmg[i],
+        critChance: characterCritChance[i]
       }));
 
       CharacterAttributes memory c = defaultCharacters[i];
@@ -108,7 +142,8 @@ contract MyEpicGame is ERC721 {
       imageURI: defaultCharacters[_characterIndex].imageURI,
       hp: defaultCharacters[_characterIndex].hp,
       maxHp: defaultCharacters[_characterIndex].hp,
-      attackDamage: defaultCharacters[_characterIndex].attackDamage
+      attackDamage: defaultCharacters[_characterIndex].attackDamage,
+      critChance: defaultCharacters[_characterIndex].critChance
     });
 
     console.log("Minted NFT w/ tokenId %s and characterIndex %s", newItemId, _characterIndex);
@@ -128,6 +163,7 @@ contract MyEpicGame is ERC721 {
     string memory strHp = Strings.toString(charAttributes.hp);
     string memory strMaxHp = Strings.toString(charAttributes.maxHp);
     string memory strAttackDamage = Strings.toString(charAttributes.attackDamage);
+    string memory strCritChance = Strings.toString(charAttributes.critChance);
 
     string memory json = Base64.encode(
       bytes(
@@ -137,10 +173,10 @@ contract MyEpicGame is ERC721 {
             charAttributes.name,
             ' -- NFT #: ',
             Strings.toString(_tokenId),
-            '", "description": "This is an NFT that lets people play in the game Metaverse Slayer!", "image": "',
+            '", "description": "This is an NFT that lets people play in the game Metaverse Slayer!", "image": "ipfs://',
             charAttributes.imageURI,
             '", "attributes": [ { "trait_type": "Health Points", "value": ',strHp,', "max_value":',strMaxHp,'}, { "trait_type": "Attack Damage", "value": ',
-            strAttackDamage,'} ]}'
+            strAttackDamage,'}, {"display_type": "boost_number", "trait_type": "Crit Chance", "value": ',strCritChance,'} ]}'
           )
         )
       )
@@ -153,10 +189,10 @@ contract MyEpicGame is ERC721 {
     return output;
   }
 
-  function attackBoss() public {
+  function attackBoss() public returns (bytes32 requestId) {
     // Get the state of the player's NFT.
     uint256 nftTokenIdOfPlayer = nftHolders[msg.sender];
-    CharacterAttributes storage player = nftHolderAttributes[nftTokenIdOfPlayer];
+    CharacterAttributes memory player = nftHolderAttributes[nftTokenIdOfPlayer];
     console.log("\nPlayer w/ character %s about to attack. Has %s HP and %s AD", player.name, player.hp, player.attackDamage);
     console.log("Boss %s has %s HP and %s AD", bigBoss.name, bigBoss.hp, bigBoss.attackDamage);
 
@@ -172,11 +208,56 @@ contract MyEpicGame is ERC721 {
       "Error: boss must have HP to attack boss."
     );
 
+    require(
+      s_results[msg.sender] != ATTACK_IN_PROGRESS,
+      "Previous attack in progress."
+    );
+
     // Allow player to attack boss.
     if (bigBoss.hp < player.attackDamage) {
+      s_results[msg.sender] = OUT_OF_LINK;
+      console.log("Player attacking boss -- default attack more than boss HP");
+      attackResult(msg.sender);
+    } else {
+      // Critical chance calculation
+      if (LINK.balanceOf(address(this)) >= fee) {
+        // if enough LINK balance, request random number for critical hit
+        requestId = requestRandomness(keyHash, fee);
+        s_results[msg.sender] = ATTACK_IN_PROGRESS;
+        console.log("Player attacking boss -- requesting randomness");
+      } else {
+        s_results[msg.sender] = OUT_OF_LINK;
+        console.log("Player attacking boss -- out of LINK");
+        attackResult(msg.sender);
+      }
+    }
+  }
+
+  function fulfillRandomness(bytes32 requestId, uint256 randomness) internal override {
+    uint256 critRoll = randomness % 100 + 1;
+    s_results[s_rollers[requestId]] = critRoll;
+    attackResult(s_rollers[requestId]);
+  }
+
+  function attackResult(address playerAddr) private {
+    require(
+      s_results[msg.sender] != ATTACK_IN_PROGRESS,
+      "Previous attack in progress."
+    );
+
+    // Get the state of the player's NFT.
+    uint256 nftTokenIdOfPlayer = nftHolders[playerAddr];
+    CharacterAttributes storage player = nftHolderAttributes[nftTokenIdOfPlayer];
+    uint256 playerDmg = player.attackDamage;
+
+    if (s_results[playerAddr] < player.critChance) {
+      playerDmg *= 2;
+    }
+
+    if (bigBoss.hp < playerDmg) {
       bigBoss.hp = 0;
     } else {
-      bigBoss.hp = bigBoss.hp - player.attackDamage;
+      bigBoss.hp = bigBoss.hp - playerDmg;
     }
     console.log("Player attacked boss. New boss hp: %s", bigBoss.hp);
 

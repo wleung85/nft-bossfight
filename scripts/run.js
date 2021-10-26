@@ -7,6 +7,7 @@ const main = async () => {
     "https://pbs.twimg.com/media/E1SsP89XMAAmyu_.jpg"],
     [100, 200, 180],                    // HP values
     [100, 50, 75],                      // Attack damage values
+    [25, 35, 60],                       // Crit chance values
     "Palpatine",
     "https://memegenerator.net/img/images/400x/71785106.jpg",
     10000,
@@ -24,6 +25,21 @@ const main = async () => {
   // Get the value of the NFT's URI.
   let returnedTokenUri = await gameContract.tokenURI(1);
   console.log("Token URI:", returnedTokenUri);
+
+  txn = await gameContract.attackBoss();
+  await txn.wait();
+
+  txn = await gameContract.attackBoss();
+  await txn.wait();
+
+  txn = await gameContract.attackBoss();
+  await txn.wait();
+
+  txn = await gameContract.attackBoss();
+  await txn.wait();
+
+  txn = await gameContract.attackBoss();
+  await txn.wait();
 
   txn = await gameContract.attackBoss();
   await txn.wait();

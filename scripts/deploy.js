@@ -2,13 +2,14 @@ const main = async () => {
   const gameContractFactory = await hre.ethers.getContractFactory('MyEpicGame');
   const gameContract = await gameContractFactory.deploy(                     
     ["Anakin", "Obi-Wan", "Yoda"],       // Names
-    ["https://i.imgflip.com/1nes3t.jpg?a453672", // Images
-    "https://nyc3.digitaloceanspaces.com/memecreator-cdn/media/__processed__/de5/template-hello-there-1519-0c6db91aec9c.jpeg", 
-    "https://pbs.twimg.com/media/E1SsP89XMAAmyu_.jpg"],
+    ["Qmcw1c6rs6shDaNnYjYr1ZMGTm3oXJGNeDXpavq9hwpGeq", // Images
+    "QmfNcuBEho8x41BwJ58xgBcr9UjPrEW8UShT4xJGjNMwjd", 
+    "QmfXnFyQWqYWuWpches45CKGgUyMR94U9USoNjVtpzr8Jx"],
     [100, 200, 180],                    // HP values
-    [100, 50, 75],                      // Attack damage values
+    [100, 50, 65],                      // Attack damage values
+    [25, 35, 100],                      // Crit chance values
     "Palpatine",
-    "https://memegenerator.net/img/images/400x/71785106.jpg",
+    "QmRtTwh3xppeE5hqHqmdwZL21aVruRiLtgXtSHQXokn8SM",
     10000,
     20
   );

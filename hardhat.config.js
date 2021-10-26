@@ -24,5 +24,10 @@ module.exports = {
       url: process.env.HARDHAT_RINKEBY_API_URL,
       accounts: [process.env.HARDHAT_RINKEBY_ACCOUNT_KEY],
     },
+    mainnet: {
+      chainId: 1,
+      url: process.env.PROD_ALCHEMY_KEY,
+      accounts: [process.env.HARDHAT_RINKEBY_ACCOUNT_KEY],
+    },
   },
 };
