@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 // Helper functions OpenZeppelin provides.
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 // Import chainlink for randomness
 import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
@@ -18,14 +19,12 @@ import "./libraries/Base64.sol";
 import "hardhat/console.sol";
 
 // Inherit ERC721, which is the standard NFT contract!
-contract MyEpicGame is ERC721, VRFConsumerBase {
+contract MyEpicGame is ERC721, VRFConsumerBase, Ownable {
 
   bytes32 internal keyHash;
   uint256 internal fee;
 
-  uint256 private randomResult;
   uint256 private constant ATTACK_IN_PROGRESS = 106;
-  uint256 private constant OUT_OF_LINK = 100;
 
   // stores a mapping between requestID of the random request and the user
   mapping(bytes32 => address) private s_rollers;
@@ -66,7 +65,7 @@ contract MyEpicGame is ERC721, VRFConsumerBase {
   mapping(address => uint256) public nftHolders;
 
   event CharacterNFTMinted(address sender, uint256 tokenId, uint256 characterIndex);
-  event AttackComplete(uint newBossHp, uint newPlayerHp);
+  event AttackComplete(uint newBossHp, uint newPlayerHp, address player, bool isCrit);
 
    /**
      * Constructor inherits VRFConsumerBase
@@ -222,6 +221,7 @@ contract MyEpicGame is ERC721, VRFConsumerBase {
 
     // Allow player to attack boss.
     requestId = requestRandomness(keyHash, fee);
+    s_rollers[requestId] = msg.sender;
     s_results[msg.sender] = ATTACK_IN_PROGRESS;
     console.log("Player attacking boss -- requesting randomness");
     emit BossAttacked(requestId, msg.sender);
@@ -231,6 +231,7 @@ contract MyEpicGame is ERC721, VRFConsumerBase {
     uint256 critRoll = randomness % 100 + 1;
     address playerAddr = s_rollers[requestId];
     s_results[playerAddr] = critRoll;
+    bool isCrit = false;
 
     // Get the state of the player's NFT.
     uint256 nftTokenIdOfPlayer = nftHolders[playerAddr];
@@ -238,6 +239,7 @@ contract MyEpicGame is ERC721, VRFConsumerBase {
     uint256 playerDmg = player.attackDamage;
 
     if (s_results[playerAddr] < player.critChance) {
+      isCrit = true;
       playerDmg *= 2;
     }
 
@@ -259,7 +261,7 @@ contract MyEpicGame is ERC721, VRFConsumerBase {
       console.log("Boss attacked player. New player hp: %s", player.hp);
     }
 
-    emit AttackComplete(bigBoss.hp, player.hp);
+    emit AttackComplete(bigBoss.hp, player.hp, playerAddr, isCrit);
     
   }
 
@@ -283,5 +285,13 @@ contract MyEpicGame is ERC721, VRFConsumerBase {
 
   function getBigBoss() public view returns (BigBoss memory) {
     return bigBoss;
+  }
+
+  function withdrawLink() external onlyOwner {
+    payable(msg.sender).transfer(address(this).balance);
+  }
+
+  function getCritRoll() public view returns (uint256) {
+    return s_results[msg.sender];
   }
 }
