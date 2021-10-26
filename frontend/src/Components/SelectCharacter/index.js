@@ -3,17 +3,21 @@ import './SelectCharacter.css';
 import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, transformCharacterData } from '../../constants';
 import myEpicGame from '../../utils/MyEpicGame.json';
+import LoadingIndicator from '../LoadingIndicator/index.js';
 
 const SelectCharacter = ({ setCharacterNFT }) => {
   const [characters, setCharacters] = useState([]);
   const [gameContract, setGameContract] = useState(null);
+  const [minting, setMinting] = useState(false);
 
   const mintCharacterNFTAction = (characterId) => async () => {
     try {
       if (gameContract) {
         console.log('Minting character in progress...');
         const mintTxn = await gameContract.mintCharacterNFT(characterId);
+        setMinting(true);
         await mintTxn.wait();
+        setMinting(false);
         console.log('mintTxn:', mintTxn);
       }
     } catch (error) {
@@ -129,7 +133,8 @@ const SelectCharacter = ({ setCharacterNFT }) => {
     <div className="select-character-container">
       <h2>Mint Your Jedi. Choose wisely.</h2>
       {/* Only show this when there are characters in state */}
-      {characters.length > 0 && (
+      {minting ? <><h3>Minting...</h3><LoadingIndicator/></> : 
+        characters.length > 0 && (
         <div className="character-grid">{renderCharacters()}</div>
       )}
     </div>

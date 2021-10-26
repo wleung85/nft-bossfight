@@ -3,11 +3,12 @@ import { ethers } from 'ethers';
 import { CONTRACT_ADDRESS, transformCharacterData } from '../../constants';
 import myEpicGame from '../../utils/MyEpicGame.json';
 import './Arena.css';
+import LoadingIndicator from '../LoadingIndicator/index.js';
 
 /*
  * We pass in our characterNFT metadata so we can a cool card in our UI
  */
-const Arena = ({ characterNFT, setCharacterNFT }) => {
+const Arena = ({ characterNFT, setCharacterNFT, currentAccount }) => {
   // State
   const [gameContract, setGameContract] = useState(null);
   const [boss, setBoss] = useState(null);
@@ -42,10 +43,10 @@ const Arena = ({ characterNFT, setCharacterNFT }) => {
       setBoss(transformCharacterData(bossTxn));
     };
 
-    const onAttackComplete = (newBossHp, newPlayerHp) => {
+    const onAttackComplete = (newBossHp, newPlayerHp, playerAddr, isCrit) => {
       const bossHp = newBossHp.toNumber();
       const playerHp = newPlayerHp.toNumber();
-
+      setAttackState('hit');
       console.log(`AttackComplete: Boss Hp: ${bossHp} Player Hp: ${playerHp}`);
 
       /*
@@ -55,9 +56,11 @@ const Arena = ({ characterNFT, setCharacterNFT }) => {
         return { ...prevState, hp: bossHp };
       });
 
-      setCharacterNFT((prevState) => {
-        return { ...prevState, hp: playerHp };
-      });
+      if (playerAddr === currentAccount) {
+        setCharacterNFT((prevState) => {
+          return { ...prevState, hp: playerHp };
+        });
+      }      
      };
 
     if (gameContract) {
@@ -65,6 +68,7 @@ const Arena = ({ characterNFT, setCharacterNFT }) => {
       * gameContract is ready to go! Let's fetch our boss
       */
       fetchBoss();
+      // console.log("Current Account: ", currentAccount);
       gameContract.on('AttackComplete', onAttackComplete);
     }
 
@@ -84,13 +88,25 @@ const Arena = ({ characterNFT, setCharacterNFT }) => {
         const attackTxn = await gameContract.attackBoss();
         await attackTxn.wait();
         console.log('attackTxn:', attackTxn);
-        setAttackState('hit');
       }
     } catch (error) {
       console.error('Error attacking boss:', error);
       setAttackState('');
     }
   };
+
+  const getCritRollResult = async () => {
+    try {
+      if (gameContract) {
+        console.log('Attacking boss...');
+        const critRollTxn = await gameContract.getCritRoll();
+        console.log('critRollTxn:', critRollTxn.toNumber());
+      }
+    } catch (error) {
+      console.error('Error getting crit roll:', error);
+      setAttackState('');
+    }
+  }
 
   return (
     <div className="arena-container">
@@ -107,10 +123,19 @@ const Arena = ({ characterNFT, setCharacterNFT }) => {
             </div>
           </div>
           <div className="attack-container">
+            {attackState === 'attacking' ? <LoadingIndicator/> :
             <button className="cta-button" onClick={runAttackAction}>
               {`💥 Attack ${boss.name}`}
             </button>
+            }
           </div>
+          { /*
+          <div className="attack-container">
+            <button className="cta-button" onClick={getCritRollResult}>
+              {`Get crit roll result`}
+            </button>
+          </div>
+          */}
         </div>
       )}
 

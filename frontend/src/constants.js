@@ -1,9 +1,9 @@
-const CONTRACT_ADDRESS = '0xa49c322db25c1DbDAbAD136b551ef954b8B1cB0b';
+const CONTRACT_ADDRESS = '0x63251335281e50dC0943CF8A5e31586E1C9D506f';
 
 const transformCharacterData = (characterData) => {
   return {
     name: characterData.name,
-    imageURI: characterData.imageURI,
+    imageURI: 'https://cloudflare-ipfs.com/ipfs/' + characterData.imageURI,
     hp: characterData.hp.toNumber(),
     maxHp: characterData.maxHp.toNumber(),
     attackDamage: characterData.attackDamage.toNumber(),
