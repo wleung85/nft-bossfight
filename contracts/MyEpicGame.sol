@@ -32,6 +32,8 @@ contract MyEpicGame is ERC721, VRFConsumerBase {
   // stores the result of the roll
   mapping(address => uint256) private s_results;
 
+  event BossAttacked(bytes32 indexed requestId, address indexed roller);
+
   struct CharacterAttributes {
     uint characterIndex;
     string name;
@@ -88,8 +90,8 @@ contract MyEpicGame is ERC721, VRFConsumerBase {
   )
     ERC721("Heroes", "HERO")
     VRFConsumerBase(
-      0x01BE23585060835E02B77ef475b0Cc51aA1e0709, // VRF Coordinator
-      0xb3dCcb4Cf7a26f6cf6B120Cf5A73875B7BBc655B  // LINK token
+      0xb3dCcb4Cf7a26f6cf6B120Cf5A73875B7BBc655B, // VRF Coordinator
+      0x01BE23585060835E02B77ef475b0Cc51aA1e0709  // LINK token
     )
   {
     keyHash = 0x2ed0feb3e7fd2022120aa84fab1945545a9f2ffc9076fd6156fa96eaff4c1311;
@@ -213,37 +215,22 @@ contract MyEpicGame is ERC721, VRFConsumerBase {
       "Previous attack in progress."
     );
 
+    require(
+      LINK.balanceOf(address(this)) >= fee,
+      "Out of LINK, refill contract."
+    );
+
     // Allow player to attack boss.
-    if (bigBoss.hp < player.attackDamage) {
-      s_results[msg.sender] = OUT_OF_LINK;
-      console.log("Player attacking boss -- default attack more than boss HP");
-      attackResult(msg.sender);
-    } else {
-      // Critical chance calculation
-      if (LINK.balanceOf(address(this)) >= fee) {
-        // if enough LINK balance, request random number for critical hit
-        requestId = requestRandomness(keyHash, fee);
-        s_results[msg.sender] = ATTACK_IN_PROGRESS;
-        console.log("Player attacking boss -- requesting randomness");
-      } else {
-        s_results[msg.sender] = OUT_OF_LINK;
-        console.log("Player attacking boss -- out of LINK");
-        attackResult(msg.sender);
-      }
-    }
+    requestId = requestRandomness(keyHash, fee);
+    s_results[msg.sender] = ATTACK_IN_PROGRESS;
+    console.log("Player attacking boss -- requesting randomness");
+    emit BossAttacked(requestId, msg.sender);
   }
 
   function fulfillRandomness(bytes32 requestId, uint256 randomness) internal override {
     uint256 critRoll = randomness % 100 + 1;
-    s_results[s_rollers[requestId]] = critRoll;
-    attackResult(s_rollers[requestId]);
-  }
-
-  function attackResult(address playerAddr) private {
-    require(
-      s_results[msg.sender] != ATTACK_IN_PROGRESS,
-      "Previous attack in progress."
-    );
+    address playerAddr = s_rollers[requestId];
+    s_results[playerAddr] = critRoll;
 
     // Get the state of the player's NFT.
     uint256 nftTokenIdOfPlayer = nftHolders[playerAddr];
